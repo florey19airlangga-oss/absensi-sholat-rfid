@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mesin Absen Sholat RFID</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-900 text-white min-h-screen flex flex-col justify-between font-sans select-none">
+
+    <!-- HEADER BAR -->
+    <header class="bg-slate-800 border-b border-slate-700 px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center space-x-3">
+            <div class="bg-emerald-500 text-slate-900 p-2.5 rounded-xl font-bold text-2xl">💳</div>
+            <div>
+                <h1 class="font-bold text-lg text-white">Terminal Absensi Sholat RFID</h1>
+                <p class="text-xs text-slate-400" id="infoPetugas">Memverifikasi sesi petugas...</p>
+            </div>
+        </div>
+
+        <!-- JAM DIGITAL -->
+        <div class="text-center bg-slate-900 px-5 py-2 rounded-xl border border-slate-700">
+            <p id="jamDigital" class="text-2xl font-mono font-bold text-emerald-400 tracking-wider">00:00:00</p>
+            <p id="tanggalLengkap" class="text-xs text-slate-400">-</p>
+        </div>
+
+        <!-- TOMBOL KEMBALI & LOGOUT -->
+        <div class="flex items-center space-x-3">
+            <a href="index.html" class="bg-slate-700 hover:bg-slate-600 text-sm font-medium px-4 py-2 rounded-lg transition">
+                📊 Lihat Grafik
+            </a>
+            <button onclick="logoutSistem()" class="bg-rose-600 hover:bg-rose-700 text-sm font-semibold px-4 py-2 rounded-lg transition">
+                Keluar
+            </button>
+        </div>
+    </header>
+
+    <!-- AREA UTAMA SCANNER -->
+    <main class="max-w-4xl w-full mx-auto px-4 py-6 space-y-6 flex-grow flex flex-col justify-center">
+
+        <!-- PENGATURAN SESI & MODE ABSEN -->
+        <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-xs uppercase tracking-wider text-slate-400 font-semibold mb-2">1. Pilih Waktu Sholat Aktif</label>
+                <select id="pilihWaktuSholat" onchange="fokusInputRFID()" class="w-full bg-slate-900 border border-slate-600 text-white text-lg font-bold rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500">
+                    <option value="Dzuhur">☀️ Sholat Dzuhur</option>
+                    <option value="Dhuha">🌤️ Sholat Dhuha</option>
+                    <option value="Ashar">🌇 Sholat Ashar</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs uppercase tracking-wider text-slate-400 font-semibold mb-2">2. Mode Pencatatan Kartu</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" id="btnModeHadir" onclick="setMode('Hadir')" class="py-3 px-4 rounded-xl font-bold text-sm border-2 border-emerald-500 bg-emerald-500/20 text-emerald-300 transition">
+                        ✅ Hadir Sholat
+                    </button>
+                    <button type="button" id="btnModeHaid" onclick="setMode('Haid')" class="py-3 px-4 rounded-xl font-bold text-sm border-2 border-slate-600 bg-slate-900 text-slate-400 hover:border-rose-500 transition">
+                        🌸 Catat Haid
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- KOTAK SCAN RFID -->
+        <div id="kotakScanner" class="bg-slate-800 border-2 border-dashed border-emerald-500/60 rounded-3xl p-8 text-center shadow-2xl transition-all duration-300">
+            <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-emerald-500/10 text-emerald-400 text-4xl mb-4 animate-pulse">
+                📡
+            </div>
+            <h2 id="judulScan" class="text-2xl md:text-3xl font-extrabold text-white">Tempelkan Kartu RFID Siswa</h2>
+            <p id="subjudulScan" class="text-slate-400 mt-1 text-sm">Pastikan kursor aktif di kolom di bawah ini sebelum melakukan tap kartu</p>
+
+            <!-- Form Input RFID (Otomatis Submit saat Reader tekan Enter) -->
+            <form id="formScanRFID" onsubmit="prosesScanRFID(event)" class="mt-6 max-w-md mx-auto">
+                <input type="text" id="inputRFID" autocomplete="off" autofocus
+                    placeholder="Menunggu scan kartu RFID..."
+                    class="w-full text-center font-mono text-xl tracking-widest bg-slate-950 border-2 border-emerald-500 text-emerald-400 rounded-xl px-4 py-3.5 focus:outline-none focus:ring-4 focus:ring-emerald-500/30">
+            </form>
+
+            <!-- KARTU HASIL SCAN (MUNCUL SAAT KARTU DI-TAP) -->
+            <div id="hasilScanBox" class="hidden mt-6 p-5 rounded-2xl border transition-all">
+                <p id="hasilStatusBadge" class="inline-block text-xs font-bold uppercase px-3 py-1 rounded-full mb-2"></p>
+                <h3 id="hasilNamaSiswa" class="text-2xl font-extrabold"></h3>
+                <p id="hasilDetailSiswa" class="text-sm opacity-90 mt-1"></p>
+            </div>
+        </div>
+
+        <!-- RIWAYAT TAP TERAKHIR HARI INI -->
+        <div class="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
+            <div class="px-5 py-3 bg-slate-800/80 border-b border-slate-700 flex justify-between items-center">
+                <h3 class="font-bold text-sm text-slate-300">🕒 Aktivitas Tap Kartu Terbaru (Hari Ini)</h3>
+                <span id="counterHariIni" class="text-xs bg-slate-700 text-slate-300 px-2.5 py-1 rounded-full">0 tercatat</span>
+            </div>
+            <div class="max-h-48 overflow-y-auto divide-y divide-slate-700/60" id="listRiwayatTap">
+                <p class="p-4 text-center text-xs text-slate-500">Belum ada kartu yang di-tap hari ini.</p>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="text-center py-3 text-xs text-slate-500 border-t border-slate-800">
+        Klik di area mana saja jika kolom RFID kehilangan fokus kursor.
+    </footer>
+
+    <script src="config.js"></script>
+    <script>
+        let modeAktif = 'Hadir'; // 'Hadir' atau 'Haid'
+        let daftarPoinSholat = {}; // Menyimpan poin tiap sholat dari database
+        let timerResetTampilan = null;
+
+        // 1. Cek Login Saat Halaman Dibuka
+        async function inisialisasiHalaman() {
+            const user = await cekAksesHalaman('absen');
+            if (!user) return;
+
+            document.getElementById('infoPetugas').innerText = `Operator aktif: ${user.email}`;
+            
+            // Muat pengaturan jadwal & poin sholat dari Supabase
+            const { data: pengaturan } = await supabaseClient.from('pengaturan_sholat').select('*');
+            if (pengaturan && pengaturan.length > 0) {
+                const selectEl = document.getElementById('pilihWaktuSholat');
+                selectEl.innerHTML = '';
+                pengaturan.forEach(p => {
+                    daftarPoinSholat[p.nama_sholat] = p.poin;
+                    selectEl.innerHTML += `<option value="${p.nama_sholat}">🕌 Sholat ${p.nama_sholat} (+${p.poin} Poin)</option>`;
+                });
+            }
+
+            muatRiwayatHariIni();
+            fokusInputRFID();
+        }
+
+        // 2. Jam Digital Real-time
+        function updateJam() {
+            const now = new Date();
+            document.getElementById('jamDigital').innerText = now.toLocaleTimeString('id-ID', { hour12: false });
+            document.getElementById('tanggalLengkap').innerText = now.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        }
+        setInterval(updateJam, 1000);
+        updateJam();
+
+        // 3. Jaga Input RFID Selalu Fokus
+        function fokusInputRFID() {
+            const input = document.getElementById('inputRFID');
+            input.focus();
+        }
+        document.addEventListener('click', (e) => {
+            if (e.target.tagName !== 'SELECT' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'A') {
+                fokusInputRFID();
+            }
+        });
+
+        // 4. Ubah Mode (Hadir vs Haid)
+        function setMode(mode) {
+            modeAktif = mode;
+            const btnHadir = document.getElementById('btnModeHadir');
+            const btnHaid = document.getElementById('btnModeHaid');
+            const kotak = document.getElementById('kotakScanner');
+            const judul = document.getElementById('judulScan');
+
+            if (mode === 'Hadir') {
+                btnHadir.className = 'py-3 px-4 rounded-xl font-bold text-sm border-2 border-emerald-500 bg-emerald-500/20 text-emerald-300 transition';
+                btnHaid.className = 'py-3 px-4 rounded-xl font-bold text-sm border-2 border-slate-600 bg-slate-900 text-slate-400 hover:border-rose-500 transition';
+                kotak.className = 'bg-slate-800 border-2 border-dashed border-emerald-500/60 rounded-3xl p-8 text-center shadow-2xl transition-all duration-300';
+                judul.innerText = 'Tempelkan Kartu RFID Siswa (Mode Sholat)';
+            } else {
+                btnHaid.className = 'py-3 px-4 rounded-xl font-bold text-sm border-2 border-rose-500 bg-rose-500/20 text-rose-300 transition';
+                btnHadir.className = 'py-3 px-4 rounded-xl font-bold text-sm border-2 border-slate-600 bg-slate-900 text-slate-400 hover:border-emerald-500 transition';
+                kotak.className = 'bg-slate-800 border-2 border-dashed border-rose-500/60 rounded-3xl p-8 text-center shadow-2xl transition-all duration-300';
+                judul.innerText = '🌸 Tempelkan Kartu Siswi Berhalangan (Haid)';
+            }
+            fokusInputRFID();
+        }
+
+        // 5. Suara Notifikasi (Text-to-Speech)
+        function ucapkanSuara(teks) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const ucapan = new SpeechSynthesisUtterance(teks);
+                ucapan.lang = 'id-ID';
+                ucapan.rate = 1.05;
+                window.speechSynthesis.speak(ucapan);
+            }
+        }
+
+        // 6. Proses Utama Saat Kartu RFID Di-Tap
+        async function prosesScanRFID(e) {
+            e.preventDefault();
+            const inputEl = document.getElementById('inputRFID');
+            const rfidKode = inputEl.value.trim();
+            inputEl.value = ''; // Langsung kosongkan agar siap untuk kartu berikutnya
+
+            if (!rfidKode) return;
+
+            const waktuSholat = document.getElementById('pilihWaktuSholat').value;
+            const hariIni = new Date().toISOString().split('T')[0];
+
+            // Cari siswa berdasarkan rfid_uid
+            const { data: siswa, error: errCari } = await supabaseClient
+                .from('siswa')
+                .select('*')
+                .eq('rfid_uid', rfidKode)
+                .single();
+
+            if (errCari || !siswa) {
+                tampilkanNotifikasi('error', 'Kartu Tidak Terdaftar!', `Kode RFID (${rfidKode}) belum terdaftar di sistem.`);
+                ucapkanSuara('Maaf, kartu tidak terdaftar');
+                return;
+            }
+
+            // Validasi khusus mode Haid (hanya untuk siswi Perempuan / P)
+            if (modeAktif === 'Haid' && siswa.jenis_kelamin === 'L') {
+                tampilkanNotifikasi('error', 'Tidak Valid!', `${siswa.nama_lengkap} adalah siswa laki-laki, tidak bisa dicatat haid.`);
+                ucapkanSuara('Maaf, mode haid hanya untuk siswi perempuan');
+                return;
+            }
+
+            // Tentukan poin yang didapat
+            const poinDidapat = modeAktif === 'Hadir' ? (daftarPoinSholat[waktuSholat] || 10) : 0;
+
+            // Simpan ke tabel absensi_sholat
+            const { error: errSimpan } = await supabaseClient
+                .from('absensi_sholat')
+                .insert([{
+                    siswa_id: siswa.id,
+                    tanggal: hariIni,
+                    waktu_sholat: waktuSholat,
+                    status: modeAktif,
+                    poin_didapat: poinDidapat
+                }]);
+
+            if (errSimpan) {
+                // Kode error 23505 di PostgreSQL berarti melanggar aturan UNIQUE (sudah absen)
+                if (errSimpan.code === '23505') {
+                    tampilkanNotifikasi('warning', 'Sudah Absen!', `${siswa.nama_lengkap} (${siswa.kelas}) sudah tercatat pada sesi ${waktuSholat} hari ini.`);
+                    ucapkanSuara(`${siswa.nama_lengkap}, sudah absen sebelumnya`);
+                } else {
+                    tampilkanNotifikasi('error', 'Gagal Menyimpan', errSimpan.message);
+                }
+                return;
+            }
+
+            // Jika Hadir Sholat, tambahkan total_poin ke tabel siswa
+            const poinBaru = siswa.total_poin + poinDidapat;
+            if (poinDidapat > 0) {
+                await supabaseClient
+                    .from('siswa')
+                    .update({ total_poin: poinBaru })
+                    .eq('id', siswa.id);
+            }
+
+            // Tampilkan Hasil Sukses
+            if (modeAktif === 'Hadir') {
+                tampilkanNotifikasi('sukses', siswa.nama_lengkap, `Kelas ${siswa.kelas} • Sholat ${waktuSholat} (+${poinDidapat} Poin) • Total: ${poinBaru} Poin`);
+                ucapkanSuara(`Terima kasih, ${siswa.nama_lengkap}`);
+            } else {
+                tampilkanNotifikasi('haid', siswa.nama_lengkap, `Kelas ${siswa.kelas} • Tercatat Haid pada sesi ${waktuSholat}`);
+                ucapkanSuara(`Tercatat haid, ${siswa.nama_lengkap}`);
+            }
+
+            muatRiwayatHariIni();
+        }
+
+        function tampilkanNotifikasi(tipe, judul, detail) {
+            const box = document.getElementById('hasilScanBox');
+            const badge = document.getElementById('hasilStatusBadge');
+            const namaEl = document.getElementById('hasilNamaSiswa');
+            const detailEl = document.getElementById('hasilDetailSiswa');
+
+            box.classList.remove('hidden', 'bg-emerald-950', 'border-emerald-500', 'text-emerald-200', 'bg-rose-950', 'border-rose-500', 'text-rose-200', 'bg-amber-950', 'border-amber-500', 'text-amber-200', 'bg-red-950', 'border-red-500', 'text-red-200');
+
+            if (tipe === 'sukses') {
+                box.classList.add('bg-emerald-950', 'border-emerald-500', 'text-emerald-200');
+                badge.className = 'inline-block text-xs font-bold uppercase px-3 py-1 rounded-full mb-2 bg-emerald-500 text-slate-950';
+                badge.innerText = '✅ BERHASIL ABSEN SHOLAT';
+            } else if (tipe === 'haid') {
+                box.classList.add('bg-rose-950', 'border-rose-500', 'text-rose-200');
+                badge.className = 'inline-block text-xs font-bold uppercase px-3 py-1 rounded-full mb-2 bg-rose-500 text-white';
+                badge.innerText = '🌸 TERCATAT BERHALANGAN (HAID)';
+            } else if (tipe === 'warning') {
+                box.classList.add('bg-amber-950', 'border-amber-500', 'text-amber-200');
+                badge.className = 'inline-block text-xs font-bold uppercase px-3 py-1 rounded-full mb-2 bg-amber-500 text-slate-950';
+                badge.innerText = '⚠️ PERINGATAN DOUBLE TAP';
+            } else {
+                box.classList.add('bg-red-950', 'border-red-500', 'text-red-200');
+                badge.className = 'inline-block text-xs font-bold uppercase px-3 py-1 rounded-full mb-2 bg-red-500 text-white';
+                badge.innerText = '❌ GAGAL';
+            }
+
+            namaEl.innerText = judul;
+            detailEl.innerText = detail;
+
+            // Otomatis sembunyikan kotak notifikasi setelah 4 detik
+            clearTimeout(timerResetTampilan);
+            timerResetTampilan = setTimeout(() => {
+                box.classList.add('hidden');
+            }, 4000);
+        }
+
+        // 7. Muat Riwayat Tap Hari Ini
+        async function muatRiwayatHariIni() {
+            const hariIni = new Date().toISOString().split('T')[0];
+            const { data } = await supabaseClient
+                .from('absensi_sholat')
+                .select('*, siswa(nama_lengkap, kelas)')
+                .eq('tanggal', hariIni)
+                .order('created_at', { ascending: false })
+                .limit(15);
+
+            const listEl = document.getElementById('listRiwayatTap');
+            const counterEl = document.getElementById('counterHariIni');
+
+            if (!data || data.length === 0) {
+                listEl.innerHTML = `<p class="p-4 text-center text-xs text-slate-500">Belum ada kartu yang di-tap hari ini.</p>`;
+                counterEl.innerText = '0 tercatat';
+                return;
+            }
+
+            counterEl.innerText = `${data.length} terbaru`;
+            listEl.innerHTML = '';
+
+            data.forEach(item => {
+                const jam = new Date(item.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+                const badgeStatus = item.status === 'Hadir'
+                    ? `<span class="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-semibold">Sholat ${item.waktu_sholat} (+${item.poin_didapat})</span>`
+                    : `<span class="text-xs bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded font-semibold">Haid (${item.waktu_sholat})</span>`;
+
+                listEl.innerHTML += `
+                    <div class="px-5 py-3 flex items-center justify-between text-sm">
+                        <div>
+                            <span class="font-bold text-white">${item.siswa ? item.siswa.nama_lengkap : 'Siswa'}</span>
+                            <span class="text-xs text-slate-400 ml-2">(${item.siswa ? item.siswa.kelas : '-'})</span>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            ${badgeStatus}
+                            <span class="text-xs font-mono text-slate-500">${jam}</span>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        inisialisasiHalaman();
+    </script>
+</body>
+</html>
