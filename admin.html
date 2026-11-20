@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Administrator - Absensi Sholat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen">
+
+    <!-- NAVBAR ADMIN -->
+    <nav class="bg-slate-900 text-white shadow-md sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <span class="bg-emerald-500 text-slate-900 p-2 rounded-lg font-bold">⚙️</span>
+                <div>
+                    <h1 class="font-bold text-base md:text-lg">Panel Administrator</h1>
+                    <p class="text-xs text-slate-400" id="adminEmailLabel">Memuat...</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <a href="index.html" class="bg-slate-700 hover:bg-slate-600 text-xs md:text-sm px-3 py-2 rounded-lg transition">📊 Dashboard</a>
+                <a href="absen.html" class="bg-emerald-600 hover:bg-emerald-700 text-xs md:text-sm px-3 py-2 rounded-lg transition">💳 Mesin Absen</a>
+                <button onclick="logoutSistem()" class="bg-rose-600 hover:bg-rose-700 text-xs md:text-sm px-3 py-2 rounded-lg transition">Keluar</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- TAB NAVIGASI MENU ADMIN -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+        <div class="flex space-x-2 border-b border-slate-300 overflow-x-auto pb-2">
+            <button onclick="gantiTab('siswa')" id="tabBtn-siswa" class="tab-btn bg-emerald-600 text-white font-semibold px-4 py-2 rounded-lg text-sm whitespace-nowrap">
+                👨‍🎓 Data Siswa & Kartu RFID
+            </button>
+            <button onclick="gantiTab('absensi')" id="tabBtn-absensi" class="tab-btn bg-white text-slate-600 hover:bg-slate-200 font-semibold px-4 py-2 rounded-lg text-sm whitespace-nowrap">
+                📋 Log & Koreksi Absensi
+            </button>
+            <button onclick="gantiTab('pengaturan')" id="tabBtn-pengaturan" class="tab-btn bg-white text-slate-600 hover:bg-slate-200 font-semibold px-4 py-2 rounded-lg text-sm whitespace-nowrap">
+                ⏱️ Jadwal & Poin Sholat
+            </button>
+        </div>
+    </div>
+
+    <!-- KONTEN TAB -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+        <!-- TAB 1: MANAJEMEN SISWA & REGISTRASI RFID -->
+        <section id="tab-siswa" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Form Tambah / Edit Siswa -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 h-fit">
+                <h2 id="judulFormSiswa" class="font-bold text-lg text-slate-800 mb-1">➕ Tambah Siswa & Kartu RFID</h2>
+                <p class="text-xs text-slate-500 mb-4">Klik kolom Kode RFID lalu tempelkan kartu pada alat reader USB.</p>
+
+                <form id="formSiswa" onsubmit="simpanSiswa(event)" class="space-y-3">
+                    <input type="hidden" id="editSiswaId">
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Kode Kartu RFID (Tap Kartu di Sini)</label>
+                        <input type="text" id="rfidUid" required placeholder="Klik lalu tempelkan kartu..."
+                            onkeydown="if(event.key==='Enter'){event.preventDefault(); document.getElementById('namaSiswa').focus();}"
+                            class="w-full font-mono bg-amber-50 border-2 border-amber-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">NIS / NISN</label>
+                        <input type="text" id="nisSiswa" placeholder="Contoh: 2026001" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Nama Lengkap Siswa</label>
+                        <input type="text" id="namaSiswa" required placeholder="Nama lengkap..." class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Jenis Kelamin</label>
+                            <select id="jkSiswa" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                                <option value="L">Laki-laki (L)</option>
+                                <option value="P">Perempuan (P)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Kelas</label>
+                            <input type="text" id="kelasSiswa" required placeholder="Contoh: 7A" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Total Poin</label>
+                        <input type="number" id="poinSiswa" value="0" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                    </div>
+
+                    <div class="pt-2 flex space-x-2">
+                        <button type="submit" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg text-sm transition">
+                            💾 Simpan Data
+                        </button>
+                        <button type="button" onclick="resetFormSiswa()" id="btnBatalEdit" class="hidden bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold px-4 py-2.5 rounded-lg text-sm">
+                            Batal
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Tabel Daftar Siswa -->
+            <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 flex flex-wrap justify-between items-center gap-3">
+                    <h2 class="font-bold text-slate-800">Daftar Siswa Terdaftar (<span id="jumlahSiswaBadge">0</span>)</h2>
+                    <input type="text" id="cariSiswaInput" onkeyup="filterTabelSiswa()" placeholder="🔍 Cari nama, kelas, atau RFID..." class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm w-64">
+                </div>
+                <div class="overflow-x-auto max-h-[520px]">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead class="bg-slate-50 text-slate-600 text-xs uppercase sticky top-0">
+                            <tr>
+                                <th class="py-3 px-4">Kode RFID</th>
+                                <th class="py-3 px-4">Nama Siswa</th>
+                                <th class="py-3 px-4">L/P</th>
+                                <th class="py-3 px-4">Kelas</th>
+                                <th class="py-3 px-4">Poin</th>
+                                <th class="py-3 px-4 text-right">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodySiswa" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 2: LOG & KOREKSI ABSENSI + EKSPOR CSV -->
+        <section id="tab-absensi" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="p-5 border-b border-slate-100 flex flex-wrap justify-between items-center gap-4">
+                <div>
+                    <h2 class="font-bold text-lg text-slate-800">Riwayat Absensi Sholat & Catatan Haid</h2>
+                    <p class="text-xs text-slate-500">Hapus baris jika terjadi kesalahan input agar siswa bisa melakukan tap ulang.</p>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <input type="date" id="filterTanggalAbsen" onchange="muatLogAbsensi()" class="border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                    <button onclick="eksporCSV()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-lg text-sm">
+                        📥 Unduh Excel (CSV)
+                    </button>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-sm">
+                    <thead class="bg-slate-50 text-slate-600 text-xs uppercase">
+                        <tr>
+                            <th class="py-3 px-4">Tanggal</th>
+                            <th class="py-3 px-4">Nama Siswa</th>
+                            <th class="py-3 px-4">Kelas</th>
+                            <th class="py-3 px-4">Waktu Sholat</th>
+                            <th class="py-3 px-4">Status</th>
+                            <th class="py-3 px-4">Poin</th>
+                            <th class="py-3 px-4 text-right">Hapus</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyAbsensi" class="divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- TAB 3: PENGATURAN JADWAL & POIN SHOLAT -->
+        <section id="tab-pengaturan" class="hidden max-w-2xl bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <h2 class="font-bold text-lg text-slate-800 mb-1">⏱️ Pengaturan Sesi Sholat & Bobot Poin</h2>
+            <p class="text-xs text-slate-500 mb-4">Atur jumlah poin yang didapat siswa setiap kali melakukan tap kartu.</p>
+
+            <form onsubmit="tambahJadwalSholat(event)" class="flex gap-2 mb-6">
+                <input type="text" id="namaSholatBaru" required placeholder="Nama sholat (misal: Maghrib / Jumat)" class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                <input type="number" id="poinSholatBaru" required value="10" class="w-24 border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-sm">Tambah</button>
+            </form>
+
+            <div id="listPengaturanSholat" class="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden"></div>
+        </section>
+
+    </main>
+
+    <script src="config.js"></script>
+    <script>
+        let semuaSiswa = [];
+        let dataAbsenTerfilter = [];
+
+        async function initAdmin() {
+            const user = await cekAksesHalaman('admin');
+            if (!user) return;
+            document.getElementById('adminEmailLabel').innerText = user.email;
+            document.getElementById('filterTanggalAbsen').value = new Date().toISOString().split('T')[0];
+
+            muatSiswa();
+            muatLogAbsensi();
+            muatPengaturanSholat();
+        }
+
+        function gantiTab(namaTab) {
+            ['siswa', 'absensi', 'pengaturan'].forEach(t => {
+                document.getElementById(`tab-${t}`).classList.add('hidden');
+                document.getElementById(`tabBtn-${t}`).className = 'tab-btn bg-white text-slate-600 hover:bg-slate-200 font-semibold px-4 py-2 rounded-lg text-sm whitespace-nowrap';
+            });
+            document.getElementById(`tab-${namaTab}`).classList.remove('hidden');
+            document.getElementById(`tabBtn-${namaTab}`).className = 'tab-btn bg-emerald-600 text-white font-semibold px-4 py-2 rounded-lg text-sm whitespace-nowrap';
+        }
+
+        // --- MANAJEMEN SISWA & RFID ---
+        async function muatSiswa() {
+            const { data } = await supabaseClient.from('siswa').select('*').order('kelas', { ascending: true }).order('nama_lengkap', { ascending: true });
+            semuaSiswa = data || [];
+            document.getElementById('jumlahSiswaBadge').innerText = semuaSiswa.length;
+            renderTabelSiswa(semuaSiswa);
+        }
+
+        function renderTabelSiswa(list) {
+            const tbody = document.getElementById('tbodySiswa');
+            tbody.innerHTML = '';
+            list.forEach(s => {
+                const dataAman = encodeURIComponent(JSON.stringify(s));
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50">
+                        <td class="py-2.5 px-4 font-mono text-xs text-amber-700 font-bold">${s.rfid_uid}</td>
+                        <td class="py-2.5 px-4 font-semibold">${s.nama_lengkap}</td>
+                        <td class="py-2.5 px-4">${s.jenis_kelamin}</td>
+                        <td class="py-2.5 px-4">${s.kelas}</td>
+                        <td class="py-2.5 px-4 font-bold text-emerald-600">${s.total_poin}</td>
+                        <td class="py-2.5 px-4 text-right space-x-2">
+                            <button onclick="isiFormEdit('${dataAman}')" class="text-blue-600 hover:underline text-xs font-semibold">Edit</button>
+                            <button onclick="hapusSiswa(${s.id}, '${s.nama_lengkap.replace(/'/g, "\\'")}')" class="text-rose-600 hover:underline text-xs font-semibold">Hapus</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function filterTabelSiswa() {
+            const kata = document.getElementById('cariSiswaInput').value.toLowerCase();
+            const hasil = semuaSiswa.filter(s =>
+                s.nama_lengkap.toLowerCase().includes(kata) ||
+                s.kelas.toLowerCase().includes(kata) ||
+                s.rfid_uid.toLowerCase().includes(kata)
+            );
+            renderTabelSiswa(hasil);
+        }
+
+        async function simpanSiswa(e) {
+            e.preventDefault();
+            const id = document.getElementById('editSiswaId').value;
+            const payload = {
+                rfid_uid: document.getElementById('rfidUid').value.trim(),
+                nis: document.getElementById('nisSiswa').value.trim(),
+                nama_lengkap: document.getElementById('namaSiswa').value.trim(),
+                jenis_kelamin: document.getElementById('jkSiswa').value,
+                kelas: document.getElementById('kelasSiswa').value.trim().toUpperCase(),
+                total_poin: parseInt(document.getElementById('poinSiswa').value) || 0
+            };
+
+            let res;
+            if (id) {
+                res = await supabaseClient.from('siswa').update(payload).eq('id', id);
+            } else {
+                res = await supabaseClient.from('siswa').insert([payload]);
+            }
+
+            if (res.error) {
+                alert('Gagal menyimpan: ' + res.error.message + '\n(Pastikan kode kartu RFID belum dipakai siswa lain)');
+            } else {
+                resetFormSiswa();
+                muatSiswa();
+            }
+        }
+
+        function isiFormEdit(encodedData) {
+            const s = JSON.parse(decodeURIComponent(encodedData));
+            document.getElementById('judulFormSiswa').innerText = '✏️ Edit Data Siswa / Ganti Kartu';
+            document.getElementById('editSiswaId').value = s.id;
+            document.getElementById('rfidUid').value = s.rfid_uid;
+            document.getElementById('nisSiswa').value = s.nis || '';
+            document.getElementById('namaSiswa').value = s.nama_lengkap;
+            document.getElementById('jkSiswa').value = s.jenis_kelamin;
+            document.getElementById('kelasSiswa').value = s.kelas;
+            document.getElementById('poinSiswa').value = s.total_poin;
+            document.getElementById('btnBatalEdit').classList.remove('hidden');
+            document.getElementById('rfidUid').focus();
+        }
+
+        function resetFormSiswa() {
+            document.getElementById('judulFormSiswa').innerText = '➕ Tambah Siswa & Kartu RFID';
+            document.getElementById('formSiswa').reset();
+            document.getElementById('editSiswaId').value = '';
+            document.getElementById('btnBatalEdit').classList.add('hidden');
+        }
+
+        async function hapusSiswa(id, nama) {
+            if (!confirm(`Hapus siswa "${nama}" beserta seluruh riwayat sholatnya?`)) return;
+            await supabaseClient.from('siswa').delete().eq('id', id);
+            muatSiswa();
+        }
+
+        // --- LOG ABSENSI & EKSPOR CSV ---
+        async function muatLogAbsensi() {
+            const tgl = document.getElementById('filterTanggalAbsen').value;
+            let query = supabaseClient.from('absensi_sholat').select('*, siswa(nama_lengkap, kelas, nis)').order('created_at', { ascending: false });
+            if (tgl) query = query.eq('tanggal', tgl);
+
+            const { data } = await query;
+            dataAbsenTerfilter = data || [];
+            const tbody = document.getElementById('tbodyAbsensi');
+            tbody.innerHTML = '';
+
+            if (dataAbsenTerfilter.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-400">Tidak ada data absensi pada tanggal ini.</td></tr>`;
+                return;
+            }
+
+            dataAbsenTerfilter.forEach(a => {
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50">
+                        <td class="py-2.5 px-4 text-xs">${a.tanggal}</td>
+                        <td class="py-2.5 px-4 font-semibold">${a.siswa ? a.siswa.nama_lengkap : '-'}</td>
+                        <td class="py-2.5 px-4">${a.siswa ? a.siswa.kelas : '-'}</td>
+                        <td class="py-2.5 px-4">${a.waktu_sholat}</td>
+                        <td class="py-2.5 px-4">
+                            <span class="px-2 py-0.5 rounded text-xs font-bold ${a.status === 'Hadir' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">${a.status}</span>
+                        </td>
+                        <td class="py-2.5 px-4 font-bold">+${a.poin_didapat}</td>
+                        <td class="py-2.5 px-4 text-right">
+                            <button onclick="hapusLogAbsen(${a.id})" class="text-rose-600 hover:underline text-xs font-semibold">Hapus</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        async function hapusLogAbsen(id) {
+            if (!confirm('Hapus catatan absensi ini?')) return;
+            await supabaseClient.from('absensi_sholat').delete().eq('id', id);
+            muatLogAbsensi();
+        }
+
+        function eksporCSV() {
+            if (dataAbsenTerfilter.length === 0) {
+                alert('Tidak ada data untuk diunduh.');
+                return;
+            }
+            let csv = 'Tanggal,NIS,Nama Siswa,Kelas,Waktu Sholat,Status,Poin\n';
+            dataAbsenTerfilter.forEach(a => {
+                const nis = a.siswa ? (a.siswa.nis || '-') : '-';
+                const nama = a.siswa ? `"${a.siswa.nama_lengkap}"` : '-';
+                const kls = a.siswa ? a.siswa.kelas : '-';
+                csv += `${a.tanggal},${nis},${nama},${kls},${a.waktu_sholat},${a.status},${a.poin_didapat}\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `Laporan_Sholat_${document.getElementById('filterTanggalAbsen').value || 'Semua'}.csv`;
+            link.click();
+        }
+
+        // --- PENGATURAN JADWAL & POIN ---
+        async function muatPengaturanSholat() {
+            const { data } = await supabaseClient.from('pengaturan_sholat').select('*').order('id');
+            const container = document.getElementById('listPengaturanSholat');
+            container.innerHTML = '';
+            (data || []).forEach(p => {
+                container.innerHTML += `
+                    <div class="p-4 flex items-center justify-between bg-slate-50">
+                        <div>
+                            <p class="font-bold text-slate-800">Sholat ${p.nama_sholat}</p>
+                            <p class="text-xs text-emerald-600 font-semibold">+${p.poin} Poin per kehadiran</p>
+                        </div>
+                        <button onclick="hapusJadwalSholat(${p.id})" class="text-rose-600 hover:underline text-xs font-bold">Hapus</button>
+                    </div>
+                `;
+            });
+        }
+
+        async function tambahJadwalSholat(e) {
+            e.preventDefault();
+            const nama = document.getElementById('namaSholatBaru').value.trim();
+            const poin = parseInt(document.getElementById('poinSholatBaru').value) || 10;
+            const { error } = await supabaseClient.from('pengaturan_sholat').insert([{ nama_sholat: nama, poin }]);
+            if (error) alert(error.message);
+            else {
+                document.getElementById('namaSholatBaru').value = '';
+                muatPengaturanSholat();
+            }
+        }
+
+        async function hapusJadwalSholat(id) {
+            if (!confirm('Hapus jadwal sholat ini?')) return;
+            await supabaseClient.from('pengaturan_sholat').delete().eq('id', id);
+            muatPengaturanSholat();
+        }
+
+        initAdmin();
+    </script>
+</body>
+</html>
